@@ -1,0 +1,125 @@
+{
+  "societies": [
+    { "id": "soc_green", "name": "Green Meadows Society" },
+    { "id": "soc_sunrise", "name": "Sunrise Heights" }
+  ],
+  "chefs": [
+    {
+      "id": "chef_neha",
+      "name": "Neha Sharma",
+      "phone": "+919900001111",
+      "societyId": "soc_green",
+      "rating": 4.8,
+      "isVerified": true,
+      "bio": "North Indian home-style meals with low oil.",
+      "walletBalance": 0
+    },
+    {
+      "id": "chef_fatima",
+      "name": "Fatima Khan",
+      "phone": "+919900002222",
+      "societyId": "soc_green",
+      "rating": 4.7,
+      "isVerified": true,
+      "bio": "Biryani and kebab specialist for family dinners.",
+      "walletBalance": 0
+    },
+    {
+      "id": "chef_radhika",
+      "name": "Radhika Iyer",
+      "phone": "+919900003333",
+      "societyId": "soc_sunrise",
+      "rating": 4.9,
+      "isVerified": true,
+      "bio": "South Indian tiffin and meal bowls.",
+      "walletBalance": 0
+    }
+  ],
+  "customers": [
+    {
+      "id": "cust_arjun",
+      "name": "Arjun Rao",
+      "phone": "+919811110001",
+      "societyId": "soc_green",
+      "address": "A-603, Green Meadows Society",
+      "walletBalance": 500
+    },
+    {
+      "id": "cust_priya",
+      "name": "Priya Nair",
+      "phone": "+919811110002",
+      "societyId": "soc_green",
+      "address": "B-1102, Green Meadows Society",
+      "walletBalance": 300
+    },
+    {
+      "id": "cust_meera",
+      "name": "Meera Das",
+      "phone": "+919811110003",
+      "societyId": "soc_sunrise",
+      "address": "C-201, Sunrise Heights",
+      "walletBalance": 200
+    }
+  ],
+  "dishes": [
+    {
+      "id": "dish_rajma",
+      "chefId": "chef_neha",
+      "name": "Rajma Rice Bowl",
+      "description": "Homemade rajma with jeera rice and salad.",
+      "price": 139,
+      "quantityAvailable": 14,
+      "cutoffTime": "11:00",
+      "tags": ["lunch", "veg"],
+      "createdAt": "2026-07-13T10:00:00.000Z"
+    },
+    {
+      "id": "dish_biryani",
+      "chefId": "chef_fatima",
+      "name": "Chicken Dum Biryani",
+      "description": "Slow-cooked dum biryani with raita.",
+      "price": 219,
+      "quantityAvailable": 9,
+      "cutoffTime": "12:00",
+      "tags": ["lunch", "non-veg"],
+      "createdAt": "2026-07-13T10:30:00.000Z"
+    },
+    {
+      "id": "dish_idli",
+      "chefId": "chef_radhika",
+      "name": "Idli Sambar Combo",
+      "description": "4 idlis, sambar, and coconut chutney.",
+      "price": 129,
+      "quantityAvailable": 20,
+      "cutoffTime": "09:30",
+      "tags": ["breakfast", "veg"],
+      "createdAt": "2026-07-13T06:30:00.000Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "order_seed_01",
+      "customerId": "cust_arjun",
+      "chefId": "chef_neha",
+      "dishId": "dish_rajma",
+      "quantity": 1,
+      "totalAmount": 139,
+      "note": "Less spicy please.",
+      "status": "delivered",
+      "paymentStatus": "paid",
+      "address": "A-603, Green Meadows Society",
+      "createdAt": "2026-07-12T07:00:00.000Z"
+    }
+  ],
+  "issues": [],
+  "walletTransactions": [
+    {
+      "id": "wtxn_seed_01",
+      "type": "topup",
+      "amount": 500,
+      "description": "Wallet top-up via UPI",
+      "customerId": "cust_arjun",
+      "createdAt": "2026-07-12T06:00:00.000Z"
+    }
+  ]
+}

@@ -1,26 +1,77 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fffdf7;
+  --foreground: #2f2118;
+  --surface: #ffffff;
+  --surface-soft: #fff5ea;
+  --primary: #ef7f1a;
+  --primary-strong: #c66510;
+  --success: #138a4f;
+  --muted: #7d5f4a;
+  --border: #f2dcc7;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
+  --color-success: var(--success);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #2a1c12;
+    --foreground: #fff9f2;
+    --surface: #38251a;
+    --surface-soft: #4a2f1f;
+    --primary: #f7a443;
+    --primary-strong: #ef8f23;
+    --success: #38b374;
+    --muted: #f0ceb0;
+    --border: #6f4d34;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+@keyframes cart-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cart-sticky-slide-up {
+  animation: cart-slide-up 220ms ease-out;
+}
+
+.mini-cart-sheet {
+  animation: cart-slide-up 220ms ease-out;
+}
+
+/* Remove number input spinners */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
 }

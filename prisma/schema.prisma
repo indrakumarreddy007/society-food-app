@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+model Society {
+  id        String   @id @default(cuid())
+  name      String
+  chefs     Chef[]
+  customers Customer[]
+  createdAt DateTime @default(now())
+}
+
+model Chef {
+  id            String   @id @default(cuid())
+  name          String
+  phone         String   @unique
+  societyId     String
+  society       Society  @relation(fields: [societyId], references: [id])
+  rating        Float    @default(5.0)
+  isVerified    Boolean  @default(false)
+  bio           String   @default("")
+  walletBalance Float    @default(0)
+  dishes        Dish[]
+  orders        Order[]
+  walletTxns    WalletTransaction[]
+  createdAt     DateTime @default(now())
+}
+
+model Customer {
+  id           String        @id @default(cuid())
+  name         String
+  phone        String        @unique
+  societyId    String
+  society      Society       @relation(fields: [societyId], references: [id])
+  address      String
+  walletBalance Float        @default(0)
+  orders       Order[]
+  issues       Issue[]
+  walletTxns   WalletTransaction[]
+  createdAt    DateTime      @default(now())
+}
+
+model Dish {
+  id                String   @id @default(cuid())
+  chefId            String
+  chef              Chef     @relation(fields: [chefId], references: [id])
+  name              String
+  description       String
+  price             Float
+  quantityAvailable Int      @default(0)
+  cutoffTime        String
+  tags              String[] @default([])
+  imageUrl          String?
+  orders            Order[]
+  createdAt         DateTime @default(now())
+}
+
+model Order {
+  id            String        @id @default(cuid())
+  customerId    String
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  chefId        String
+  chef          Chef          @relation(fields: [chefId], references: [id])
+  dishId        String
+  dish          Dish          @relation(fields: [dishId], references: [id])
+  quantity      Int
+  totalAmount   Float
+  note          String        @default("")
+  status        OrderStatus   @default(placed)
+  paymentStatus PaymentStatus @default(pending)
+  paymentId     String?
+  address       String
+  issues        Issue[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Issue {
+  id                   String      @id @default(cuid())
+  orderId              String
+  order                Order       @relation(fields: [orderId], references: [id])
+  createdByCustomerId  String
+  customer             Customer    @relation(fields: [createdByCustomerId], references: [id])
+  issueType            IssueType
+  message              String
+  status               IssueStatus @default(open)
+  createdAt            DateTime    @default(now())
+}
+
+enum OrderStatus {
+  placed
+  accepted
+  preparing
+  ready
+  out_for_delivery
+  delivered
+  rejected
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  refunded
+}
+
+enum IssueStatus {
+  open
+  resolved
+}
+
+enum IssueType {
+  late_delivery
+  quality_issue
+  wrong_item
+}
+
+model WalletTransaction {
+  id           String                @id @default(cuid())
+  type         WalletTransactionType
+  amount       Float
+  description  String
+  customerId   String?
+  customer     Customer?             @relation(fields: [customerId], references: [id])
+  chefId       String?
+  chef         Chef?                 @relation(fields: [chefId], references: [id])
+  orderId      String?
+  createdAt    DateTime              @default(now())
+}
+
+enum WalletTransactionType {
+  topup        // Customer adds money via UPI QR
+  debit        // Customer pays for order
+  credit       // Chef earns from delivered order
+  settlement   // Admin pays chef via UPI
+  refund       // Refund to customer wallet
+}
+
