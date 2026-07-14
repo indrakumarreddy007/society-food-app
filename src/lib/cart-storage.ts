@@ -6,6 +6,8 @@ export interface CartItem {
 
 export const CART_STORAGE_KEY = "society-food-cart-v1";
 export const CART_CUSTOMER_STORAGE_KEY = "society-food-cart-customer-v1";
+export const CHEF_SELECTION_STORAGE_KEY = "society-food-chef-v1";
+export const ROLE_SELECTION_STORAGE_KEY = "society-food-role-v1";
 
 export function parseCartItems(rawValue: string | null): CartItem[] {
   if (!rawValue) {
@@ -41,4 +43,3 @@ export function parseCartItems(rawValue: string | null): CartItem[] {
     return [];
   }
 }
-

@@ -2,6 +2,8 @@ import { z } from "zod";
 import { computeOrderTotal } from "@/lib/order-utils";
 import { createId, mutateStore, nowIso, readStore } from "@/lib/store";
 import type {
+  Chef,
+  Customer,
   DashboardData,
   Dish,
   IssueType,
@@ -9,6 +11,7 @@ import type {
   OrderStatus,
   OrderWithDetails,
   PaymentStatus,
+  Society,
   WalletTransaction,
 } from "@/lib/types";
 
@@ -55,11 +58,28 @@ const updateIssueStatusSchema = z.object({
   status: z.enum(["open", "resolved"]),
 });
 
+const upsertCustomerProfileSchema = z.object({
+  phone: z.string().min(8),
+  name: z.string().min(2),
+  societyId: z.string().min(1),
+  address: z.string().min(3),
+});
+
+const upsertChefProfileSchema = z.object({
+  phone: z.string().min(8),
+  name: z.string().min(2),
+  kitchenName: z.string().min(2),
+  societyId: z.string().min(1),
+  bio: z.string().min(3).max(220).default("Home-cooked meals made fresh daily."),
+});
+
 export type AddDishInput = z.infer<typeof addDishSchema>;
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
 export type CreateIssueInput = z.infer<typeof createIssueSchema>;
 export type UpdateIssueStatusInput = z.infer<typeof updateIssueStatusSchema>;
+export type UpsertCustomerProfileInput = z.infer<typeof upsertCustomerProfileSchema>;
+export type UpsertChefProfileInput = z.infer<typeof upsertChefProfileSchema>;
 
 function joinOrderDetails(store: Awaited<ReturnType<typeof readStore>>): OrderWithDetails[] {
   return store.orders
@@ -271,6 +291,86 @@ export async function updateIssueStatus(
     }
     issue.status = input.status;
     return issue;
+  });
+}
+
+export async function getProfilesByPhone(phone: string): Promise<{
+  societies: Society[];
+  customer: Customer | null;
+  chef: Chef | null;
+}> {
+  const normalizedPhone = phone.trim();
+  if (!normalizedPhone) {
+    throw new Error("Phone is required.");
+  }
+  const store = await readStore();
+  return {
+    societies: store.societies,
+    customer:
+      store.customers.find((entry) => entry.phone === normalizedPhone) ?? null,
+    chef: store.chefs.find((entry) => entry.phone === normalizedPhone) ?? null,
+  };
+}
+
+export async function upsertCustomerProfile(
+  payload: UpsertCustomerProfileInput,
+): Promise<Customer> {
+  const input = upsertCustomerProfileSchema.parse(payload);
+  return mutateStore((store) => {
+    const society = store.societies.find((entry) => entry.id === input.societyId);
+    if (!society) {
+      throw new Error("Society not found.");
+    }
+    const existing = store.customers.find((entry) => entry.phone === input.phone);
+    if (existing) {
+      existing.name = input.name.trim();
+      existing.societyId = input.societyId;
+      existing.address = input.address.trim();
+      return existing;
+    }
+    const customer: Customer = {
+      id: createId("cust"),
+      name: input.name.trim(),
+      phone: input.phone,
+      societyId: input.societyId,
+      address: input.address.trim(),
+      walletBalance: 0,
+    };
+    store.customers.unshift(customer);
+    return customer;
+  });
+}
+
+export async function upsertChefProfile(
+  payload: UpsertChefProfileInput,
+): Promise<Chef> {
+  const input = upsertChefProfileSchema.parse(payload);
+  return mutateStore((store) => {
+    const society = store.societies.find((entry) => entry.id === input.societyId);
+    if (!society) {
+      throw new Error("Society not found.");
+    }
+    const existing = store.chefs.find((entry) => entry.phone === input.phone);
+    if (existing) {
+      existing.name = input.name.trim();
+      existing.kitchenName = input.kitchenName.trim();
+      existing.societyId = input.societyId;
+      existing.bio = input.bio.trim();
+      return existing;
+    }
+    const chef: Chef = {
+      id: createId("chef"),
+      name: input.name.trim(),
+      kitchenName: input.kitchenName.trim(),
+      phone: input.phone,
+      societyId: input.societyId,
+      rating: 5,
+      isVerified: false,
+      bio: input.bio.trim(),
+      walletBalance: 0,
+    };
+    store.chefs.unshift(chef);
+    return chef;
   });
 }
 

@@ -13,6 +13,7 @@ const societySchema = z.object({
 const chefSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
+  kitchenName: z.string().min(1).default("Home Kitchen"),
   phone: z.string().min(8),
   societyId: z.string().min(1),
   rating: z.number().min(0).max(5),

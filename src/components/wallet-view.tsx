@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import type { WalletTransaction } from "@/lib/types";
+import { CART_CUSTOMER_STORAGE_KEY } from "@/lib/cart-storage";
+import type { Chef, Customer, Society, WalletTransaction } from "@/lib/types";
 
 const UPI_ID = process.env.NEXT_PUBLIC_ADMIN_UPI_ID ?? "admin@upi";
 const UPI_QR_URL = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=upi://pay?pa=${UPI_ID}&pn=SocietyFood&cu=INR`;
@@ -23,35 +24,91 @@ const TX_COLOR: Record<string, string> = {
   refund: "text-amber-500",
 };
 
+async function requestJson<T>(
+  input: string,
+  init?: RequestInit,
+): Promise<{ ok: true; data: T } | { ok: false; message: string }> {
+  const response = await fetch(input, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+  const body = (await response.json()) as T | { message: string };
+  if (!response.ok) {
+    const message =
+      typeof body === "object" &&
+      body !== null &&
+      "message" in body &&
+      typeof body.message === "string"
+        ? body.message
+        : "Request failed.";
+    return { ok: false, message };
+  }
+  return { ok: true, data: body as T };
+}
+
 export default function WalletView() {
+  type AuthGate = "checking" | "unauthenticated" | "needs_customer_profile" | "ready";
+  type AuthProfilePayload = {
+    phone: string;
+    societies: Society[];
+    customer: Customer | null;
+    chef: Chef | null;
+  };
   const [balance, setBalance] = useState<number>(0);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [customerName, setCustomerName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [authGate, setAuthGate] = useState<AuthGate>("checking");
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    const id = localStorage.getItem("selectedCustomer");
-    const fetches: Promise<unknown>[] = [];
+    async function bootstrap() {
+      const authResult = await requestJson<{ authenticated: boolean }>("/api/auth/me");
+      if (!authResult.ok || !authResult.data.authenticated) {
+        setAuthGate("unauthenticated");
+        setLoading(false);
+        return;
+      }
 
-    if (id) {
-      fetches.push(
-        fetch(`/api/wallet?customerId=${id}`)
-          .then((r) => r.json())
-          .then((data: { balance?: number; transactions?: WalletTransaction[] }) => {
-            setBalance(data.balance ?? 0);
-            setTransactions(data.transactions ?? []);
-          }),
-        fetch(`/api/dashboard`)
-          .then((r) => r.json())
-          .then((data: { customers?: Array<{ id: string; name: string }> }) => {
-            const cust = data.customers?.find((c) => c.id === id);
-            if (cust) setCustomerName(cust.name);
-          }),
-      );
+      const profileResult = await requestJson<AuthProfilePayload>("/api/auth/profile");
+      if (!profileResult.ok) {
+        setErrorMessage(profileResult.message);
+        setAuthGate("unauthenticated");
+        setLoading(false);
+        return;
+      }
+      if (!profileResult.data.customer) {
+        setAuthGate("needs_customer_profile");
+        setLoading(false);
+        return;
+      }
+
+      const customerId = profileResult.data.customer.id;
+      setCustomerName(profileResult.data.customer.name);
+      localStorage.setItem(CART_CUSTOMER_STORAGE_KEY, customerId);
+
+      const walletResult = await requestJson<{
+        balance?: number;
+        transactions?: WalletTransaction[];
+      }>(`/api/wallet?customerId=${customerId}`);
+      if (!walletResult.ok) {
+        setErrorMessage(walletResult.message);
+        setAuthGate("unauthenticated");
+        setLoading(false);
+        return;
+      }
+
+      setBalance(walletResult.data.balance ?? 0);
+      setTransactions(walletResult.data.transactions ?? []);
+      setAuthGate("ready");
+      setLoading(false);
     }
 
-    Promise.allSettled(fetches).finally(() => setLoading(false));
+    void bootstrap();
   }, []);
 
   const copyUpi = () => {
@@ -64,6 +121,49 @@ export default function WalletView() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-10 w-10 border-4 border-orange-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (authGate === "unauthenticated") {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-8 md:py-10">
+        <section className="rounded-xl border border-border bg-surface p-6">
+          <h2 className="text-xl font-semibold">Please login to continue</h2>
+          <p className="mt-2 text-sm text-muted">
+            You need to sign in before using wallet.
+          </p>
+          {errorMessage ? (
+            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+              {errorMessage}
+            </p>
+          ) : null}
+          <Link
+            href="/auth"
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold hover:bg-surface-soft"
+          >
+            Login / Complete profile
+          </Link>
+        </section>
+      </div>
+    );
+  }
+
+  if (authGate === "needs_customer_profile") {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-8 md:py-10">
+        <section className="rounded-xl border border-border bg-surface p-6">
+          <h2 className="text-xl font-semibold">Customer profile required</h2>
+          <p className="mt-2 text-sm text-muted">
+            Complete customer details after login to access wallet.
+          </p>
+          <Link
+            href="/auth"
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold hover:bg-surface-soft"
+          >
+            Complete profile
+          </Link>
+        </section>
       </div>
     );
   }

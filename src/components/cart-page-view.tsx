@@ -8,7 +8,7 @@ import {
   CartItem,
   parseCartItems,
 } from "@/lib/cart-storage";
-import type { DashboardData } from "@/lib/types";
+import type { Chef, Customer, DashboardData, Society } from "@/lib/types";
 
 async function requestJson<T>(
   input: string,
@@ -37,6 +37,13 @@ async function requestJson<T>(
 
 export function CartPageView() {
   const noContactStorageKey = "society-food-no-contact-v1";
+  type AuthGate = "checking" | "unauthenticated" | "needs_customer_profile" | "ready";
+  type AuthProfilePayload = {
+    phone: string;
+    societies: Society[];
+    customer: Customer | null;
+    chef: Chef | null;
+  };
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>(() =>
     typeof window === "undefined"
@@ -57,6 +64,7 @@ export function CartPageView() {
       ? false
       : localStorage.getItem(noContactStorageKey) === "true",
   );
+  const [authGate, setAuthGate] = useState<AuthGate>("checking");
 
   useEffect(() => {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
@@ -77,19 +85,46 @@ export function CartPageView() {
   }, [noContactDelivery]);
 
   useEffect(() => {
-    async function loadData() {
+    async function bootstrap() {
+      const authResult = await requestJson<{ authenticated: boolean }>("/api/auth/me");
+      if (!authResult.ok || !authResult.data.authenticated) {
+        setAuthGate("unauthenticated");
+        return;
+      }
+
+      const profileResult = await requestJson<AuthProfilePayload>("/api/auth/profile");
+      if (!profileResult.ok) {
+        setErrorMessage(profileResult.message);
+        setAuthGate("unauthenticated");
+        return;
+      }
+      if (!profileResult.data.customer) {
+        setAuthGate("needs_customer_profile");
+        return;
+      }
+
+      const profileCustomerId = profileResult.data.customer.id;
+      if (!selectedCustomerId) {
+        setSelectedCustomerId(profileCustomerId);
+      }
+
       const result = await requestJson<DashboardData>("/api/dashboard");
       if (!result.ok) {
         setErrorMessage(result.message);
+        setAuthGate("unauthenticated");
         return;
       }
       setDashboard(result.data);
-      if (!selectedCustomerId && result.data.customers[0]) {
-        setSelectedCustomerId(result.data.customers[0].id);
+      const hasSelectedCustomer = result.data.customers.some(
+        (entry) => entry.id === selectedCustomerId,
+      );
+      if (!hasSelectedCustomer) {
+        setSelectedCustomerId(profileCustomerId);
       }
+      setAuthGate("ready");
     }
-    void loadData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    void bootstrap();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const cartRows = useMemo(() => {
@@ -187,6 +222,59 @@ export function CartPageView() {
   }
 
   const selectedCustomer = dashboard?.customers.find((c) => c.id === selectedCustomerId);
+
+  if (authGate === "checking") {
+    return (
+      <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-10">
+        <div className="mt-6 rounded-xl border border-border bg-surface p-5">
+          Checking your session...
+        </div>
+      </div>
+    );
+  }
+
+  if (authGate === "unauthenticated") {
+    return (
+      <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-10">
+        <section className="rounded-xl border border-border bg-surface p-6">
+          <h2 className="text-xl font-semibold">Please login to continue</h2>
+          <p className="mt-2 text-sm text-muted">
+            You need to sign in before accessing cart checkout.
+          </p>
+          {errorMessage ? (
+            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+              {errorMessage}
+            </p>
+          ) : null}
+          <Link
+            href="/auth"
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold hover:bg-surface-soft"
+          >
+            Login / Complete profile
+          </Link>
+        </section>
+      </div>
+    );
+  }
+
+  if (authGate === "needs_customer_profile") {
+    return (
+      <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-10">
+        <section className="rounded-xl border border-border bg-surface p-6">
+          <h2 className="text-xl font-semibold">Customer profile required</h2>
+          <p className="mt-2 text-sm text-muted">
+            Complete customer details after login to use cart and wallet checkout.
+          </p>
+          <Link
+            href="/auth"
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold hover:bg-surface-soft"
+          >
+            Complete profile
+          </Link>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-10">
@@ -387,4 +475,3 @@ export function CartPageView() {
     </div>
   );
 }
-

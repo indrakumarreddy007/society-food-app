@@ -11,8 +11,20 @@
   ],
   "chefs": [
     {
+      "id": "chef_ce26b78d",
+      "name": "krishna",
+      "kitchenName": "Krishna kitchen",
+      "phone": "+915214255151",
+      "societyId": "soc_green",
+      "rating": 5,
+      "isVerified": false,
+      "bio": "Home-cooked meals made fresh daily.",
+      "walletBalance": 0
+    },
+    {
       "id": "chef_neha",
       "name": "Neha Sharma",
+      "kitchenName": "Home Kitchen",
       "phone": "+919900001111",
       "societyId": "soc_green",
       "rating": 4.8,
@@ -23,6 +35,7 @@
     {
       "id": "chef_fatima",
       "name": "Fatima Khan",
+      "kitchenName": "Home Kitchen",
       "phone": "+919900002222",
       "societyId": "soc_green",
       "rating": 4.7,
@@ -33,6 +46,7 @@
     {
       "id": "chef_radhika",
       "name": "Radhika Iyer",
+      "kitchenName": "Home Kitchen",
       "phone": "+919900003333",
       "societyId": "soc_sunrise",
       "rating": 4.9,

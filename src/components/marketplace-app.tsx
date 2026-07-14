@@ -5,15 +5,20 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CART_CUSTOMER_STORAGE_KEY,
   CART_STORAGE_KEY,
+  CHEF_SELECTION_STORAGE_KEY,
   parseCartItems,
+  ROLE_SELECTION_STORAGE_KEY,
 } from "@/lib/cart-storage";
 import { orderStatusLabel } from "@/lib/order-utils";
 import type {
+  Chef,
+  Customer,
   DashboardData,
   IssueType,
   OrderStatus,
   PaymentStatus,
   Role,
+  Society,
 } from "@/lib/types";
 
 const roles: Array<{ key: Role; label: string }> = [
@@ -49,15 +54,33 @@ async function requestJson<T>(
 
 export function MarketplaceApp() {
   type CustomerBrowseMode = "cook" | "dish";
+  const validRoles: Role[] = ["customer", "chef", "admin"];
+  type AuthGate = "checking" | "unauthenticated" | "needs_profile" | "ready";
+  type AuthProfilePayload = {
+    phone: string;
+    societies: Society[];
+    customer: Customer | null;
+    chef: Chef | null;
+  };
 
-  const [activeRole, setActiveRole] = useState<Role>("customer");
+  const [activeRole, setActiveRole] = useState<Role>(() => {
+    if (typeof window === "undefined") {
+      return "customer";
+    }
+    const saved = localStorage.getItem(ROLE_SELECTION_STORAGE_KEY);
+    return validRoles.includes(saved as Role) ? (saved as Role) : "customer";
+  });
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(() =>
     typeof window === "undefined"
       ? ""
       : (localStorage.getItem(CART_CUSTOMER_STORAGE_KEY) ?? ""),
   );
-  const [selectedChefId, setSelectedChefId] = useState<string>("");
+  const [selectedChefId, setSelectedChefId] = useState<string>(() =>
+    typeof window === "undefined"
+      ? ""
+      : (localStorage.getItem(CHEF_SELECTION_STORAGE_KEY) ?? ""),
+  );
   const [selectedDishId, setSelectedDishId] = useState<string>("");
   const [cartItems, setCartItems] = useState<
     Array<{ dishId: string; quantity: number; note: string }>
@@ -87,26 +110,76 @@ export function MarketplaceApp() {
   const [isBusy, setIsBusy] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [isMiniCartOpen, setIsMiniCartOpen] = useState(false);
+  const [authGate, setAuthGate] = useState<AuthGate>("checking");
 
-  async function loadDashboardData() {
+  async function loadDashboardData(): Promise<boolean> {
     setLoadError("");
     const result = await requestJson<DashboardData>("/api/dashboard");
     if (!result.ok) {
       setLoadError(result.message);
-      return;
+      return false;
     }
     setDashboard(result.data);
-    if (!selectedCustomerId && result.data.customers[0]) {
+    const hasSelectedCustomer = result.data.customers.some(
+      (entry) => entry.id === selectedCustomerId,
+    );
+    if (!hasSelectedCustomer && result.data.customers[0]) {
       setSelectedCustomerId(result.data.customers[0].id);
     }
-    if (!selectedChefId && result.data.chefs[0]) {
+    const hasSelectedChef = result.data.chefs.some(
+      (entry) => entry.id === selectedChefId,
+    );
+    if (!hasSelectedChef && result.data.chefs[0]) {
       setSelectedChefId(result.data.chefs[0].id);
     }
+    return true;
   }
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      void loadDashboardData();
+      void (async () => {
+        const authResult = await requestJson<{ authenticated: boolean }>("/api/auth/me");
+        if (!authResult.ok || !authResult.data.authenticated) {
+          setAuthGate("unauthenticated");
+          return;
+        }
+
+        const profileResult = await requestJson<AuthProfilePayload>("/api/auth/profile");
+        if (!profileResult.ok) {
+          setLoadError(profileResult.message);
+          setAuthGate("unauthenticated");
+          return;
+        }
+
+        if (!profileResult.data.customer && !profileResult.data.chef) {
+          setAuthGate("needs_profile");
+          return;
+        }
+
+        if (!selectedCustomerId && profileResult.data.customer) {
+          setSelectedCustomerId(profileResult.data.customer.id);
+        }
+        if (!selectedChefId && profileResult.data.chef) {
+          setSelectedChefId(profileResult.data.chef.id);
+        }
+        if (
+          activeRole === "customer" &&
+          !profileResult.data.customer &&
+          profileResult.data.chef
+        ) {
+          setActiveRole("chef");
+        }
+        if (
+          activeRole === "chef" &&
+          !profileResult.data.chef &&
+          profileResult.data.customer
+        ) {
+          setActiveRole("customer");
+        }
+
+        await loadDashboardData();
+        setAuthGate("ready");
+      })();
     }, 0);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initial bootstrap only
@@ -122,6 +195,17 @@ export function MarketplaceApp() {
     }
     localStorage.setItem(CART_CUSTOMER_STORAGE_KEY, selectedCustomerId);
   }, [selectedCustomerId]);
+
+  useEffect(() => {
+    if (!selectedChefId) {
+      return;
+    }
+    localStorage.setItem(CHEF_SELECTION_STORAGE_KEY, selectedChefId);
+  }, [selectedChefId]);
+
+  useEffect(() => {
+    localStorage.setItem(ROLE_SELECTION_STORAGE_KEY, activeRole);
+  }, [activeRole]);
 
   const selectedCustomer = useMemo(
     () => dashboard?.customers.find((entry) => entry.id === selectedCustomerId),
@@ -491,6 +575,59 @@ export function MarketplaceApp() {
     await loadDashboardData();
   }
 
+  if (authGate === "checking") {
+    return (
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8 md:py-10">
+        <section className="rounded-xl border border-border bg-surface p-5">
+          Checking your session...
+        </section>
+      </div>
+    );
+  }
+
+  if (authGate === "unauthenticated") {
+    return (
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8 md:py-10">
+        <section className="rounded-xl border border-border bg-surface p-6">
+          <h2 className="text-xl font-semibold">Please login to continue</h2>
+          <p className="mt-2 text-sm text-muted">
+            You need to sign in before using the marketplace.
+          </p>
+          {loadError ? (
+            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+              {loadError}
+            </p>
+          ) : null}
+          <Link
+            href="/auth"
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold hover:bg-surface-soft"
+          >
+            Login / Complete profile
+          </Link>
+        </section>
+      </div>
+    );
+  }
+
+  if (authGate === "needs_profile") {
+    return (
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8 md:py-10">
+        <section className="rounded-xl border border-border bg-surface p-6">
+          <h2 className="text-xl font-semibold">Complete your profile first</h2>
+          <p className="mt-2 text-sm text-muted">
+            Add your customer or chef details after login to unlock marketplace access.
+          </p>
+          <Link
+            href="/auth"
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold hover:bg-surface-soft"
+          >
+            Complete profile
+          </Link>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`mx-auto w-full max-w-7xl px-4 py-6 md:px-8 md:py-10 ${
@@ -660,6 +797,7 @@ export function MarketplaceApp() {
                             Verified home cook
                           </p>
                           <h3 className="mt-1 text-lg font-semibold">{entry.chef.name}</h3>
+                          <p className="text-xs text-muted">{entry.chef.kitchenName}</p>
                         </div>
                         <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-success">
                           ⭐ {entry.chef.rating.toFixed(1)}
@@ -875,7 +1013,7 @@ export function MarketplaceApp() {
               >
                 {dashboard.chefs.map((chef) => (
                   <option key={chef.id} value={chef.id}>
-                    {chef.name}
+                    {chef.name} · {chef.kitchenName}
                   </option>
                 ))}
               </select>

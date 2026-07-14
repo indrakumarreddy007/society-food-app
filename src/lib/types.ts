@@ -23,6 +23,7 @@ export interface Society {
 export interface Chef {
   id: string;
   name: string;
+  kitchenName: string;
   phone: string;
   societyId: string;
   rating: number;
@@ -125,4 +126,3 @@ export interface DashboardData {
   issues: IssueWithDetails[];
   walletTransactions: WalletTransaction[];
 }
-
