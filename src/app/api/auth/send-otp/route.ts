@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
+/**
+ * SMS OTP is only attempted when both Supabase is configured AND
+ * OTP_SMS_ENABLED=true is set (requires a real phone provider in Supabase).
+ * Otherwise we fall back to mock mode (any 6-digit code accepted).
+ */
+function isSmsEnabled(): boolean {
+  return isSupabaseConfigured() && process.env.OTP_SMS_ENABLED === "true";
+}
+
 export async function POST(request: Request) {
-  const { phone } = await request.json() as { phone: string };
+  const { phone } = (await request.json()) as { phone: string };
 
   if (!phone || !/^\+\d{10,15}$/.test(phone)) {
     return NextResponse.json(
@@ -11,8 +20,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!isSupabaseConfigured()) {
-    // Dev mock: pretend OTP was sent
+  if (!isSmsEnabled()) {
     return NextResponse.json({ success: true, mock: true });
   }
 

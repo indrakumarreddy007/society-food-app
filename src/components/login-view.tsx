@@ -275,7 +275,7 @@ export function LoginView() {
               </p>
               {isMock ? (
                 <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-700">
-                  Dev mode — enter any 6-digit number (e.g. <strong>123456</strong>)
+                  No SMS provider yet — enter any 6-digit number (e.g. <strong>123456</strong>)
                 </div>
               ) : null}
               <div className="mt-4 space-y-3">
@@ -434,3 +434,4 @@ export function LoginView() {
     </div>
   );
 }
+
