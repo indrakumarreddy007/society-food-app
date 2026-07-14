@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   CART_CUSTOMER_STORAGE_KEY,
   CHEF_SELECTION_STORAGE_KEY,
@@ -111,9 +111,10 @@ export function LoginView() {
     setStep("otp");
   }
 
-  async function verifyOtp() {
+  async function verifyOtp(otpOverride?: string) {
+    const token = otpOverride ?? otp;
     setError("");
-    if (!otp.trim()) {
+    if (!token.trim()) {
       setError("Enter the OTP.");
       return;
     }
@@ -121,7 +122,7 @@ export function LoginView() {
     const res = await fetch("/api/auth/verify-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, token: otp }),
+      body: JSON.stringify({ phone, token }),
     });
     const data = (await res.json()) as { success?: boolean; message?: string };
     if (!res.ok) {
@@ -278,33 +279,27 @@ export function LoginView() {
                   No SMS provider yet — enter any 6-digit number (e.g. <strong>123456</strong>)
                 </div>
               ) : null}
-              <div className="mt-4 space-y-3">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={otp}
-                  onChange={(event) =>
-                    setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))
+              <OtpBoxes
+                value={otp}
+                onChange={(val) => {
+                  setOtp(val);
+                  if (val.length === 6) {
+                    void verifyOtp(val);
                   }
-                  onKeyDown={(event) => event.key === "Enter" && void verifyOtp()}
-                  placeholder="______"
-                  className="w-full rounded-xl border border-border px-4 py-3 text-center text-2xl font-bold tracking-[0.4em] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  autoFocus
-                  maxLength={6}
-                />
-                {error ? (
-                  <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => void verifyOtp()}
-                  disabled={isBusy || otp.length < 6}
-                  className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white transition hover:bg-primary-strong disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isBusy ? "Verifying..." : "Verify OTP"}
-                </button>
-              </div>
+                }}
+                disabled={isBusy}
+              />
+              {error ? (
+                <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void verifyOtp()}
+                disabled={isBusy || otp.length < 6}
+                className="mt-3 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white transition hover:bg-primary-strong disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isBusy ? "Verifying..." : "Verify OTP"}
+              </button>
             </>
           ) : null}
 
@@ -431,6 +426,84 @@ export function LoginView() {
           .
         </p>
       </div>
+    </div>
+  );
+}
+
+// ── Segmented 6-box OTP input ──────────────────────────────────────────────
+
+function OtpBoxes({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  disabled?: boolean;
+}) {
+  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  function focusBox(index: number) {
+    inputRefs.current[index]?.focus();
+  }
+
+  function handleKey(
+    e: React.KeyboardEvent<HTMLInputElement>,
+    index: number,
+  ) {
+    if (e.key === "Backspace") {
+      if (value[index]) {
+        const next = value.split("");
+        next[index] = "";
+        onChange(next.join("").trimEnd());
+      } else if (index > 0) {
+        focusBox(index - 1);
+        const next = value.split("");
+        next[index - 1] = "";
+        onChange(next.join("").trimEnd());
+      }
+      e.preventDefault();
+    } else if (e.key === "ArrowLeft" && index > 0) {
+      focusBox(index - 1);
+    } else if (e.key === "ArrowRight" && index < 5) {
+      focusBox(index + 1);
+    }
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>, index: number) {
+    const raw = e.target.value.replace(/\D/g, "");
+    if (!raw) return;
+    // Support paste: fill boxes starting at current index
+    const chars = raw.slice(0, 6 - index).split("");
+    const next = value.padEnd(6, " ").split("");
+    chars.forEach((ch, i) => {
+      next[index + i] = ch;
+    });
+    const newVal = next.join("").trimEnd().replace(/ /g, "");
+    onChange(newVal);
+    const nextFocus = Math.min(index + chars.length, 5);
+    setTimeout(() => focusBox(nextFocus), 0);
+  }
+
+  return (
+    <div className="mt-4 flex justify-center gap-2">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <input
+          key={i}
+          ref={(el) => { inputRefs.current[i] = el; }}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={1}
+          value={value[i] ?? ""}
+          onChange={(e) => handleChange(e, i)}
+          onKeyDown={(e) => handleKey(e, i)}
+          onFocus={(e) => e.target.select()}
+          autoFocus={i === 0}
+          disabled={disabled}
+          className="h-12 w-11 rounded-xl border border-border text-center text-xl font-bold outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+        />
+      ))}
     </div>
   );
 }
